@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pothole Patrol — Oops! It's the Network!</title>
+<style>
+  :root{
+    --asphalt:#1b2430;
+    --asphalt-2:#242e3d;
+    --asphalt-3:#2e3948;
+    --paper:#f5f6f7;
+    --amber:#ffb020;
+    --teal:#2ec4b6;
+    --danger:#d64541;
+    --text-light:#f5f6f7;
+    --text-dark:#1b2430;
+    --muted:#6b7280;
+    --muted-light:#9aa5b1;
+    --line:#3a4553;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:#0c0f14;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    overflow:hidden;
+  }
+  #viewport{
+    width:100%; height:100%;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #stage{
+    width:1280px; height:720px;
+    background:var(--paper);
+    position:relative;
+    display:flex; flex-direction:column;
+    box-shadow:0 20px 60px rgba(0,0,0,.5);
+    transform-origin: center center;
+    overflow:hidden;
+  }
+  /* ---------- header ---------- */
+  #header{
+    height:70px; flex:0 0 70px;
+    background:var(--asphalt);
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 26px;
+    border-bottom:3px solid var(--amber);
+  }
+  #header .brand{ display:flex; align-items:center; gap:14px; }
+  #header .brand .dot{ width:14px; height:14px; border-radius:50%; background:var(--amber); }
+  #header .brand span.name{ color:var(--text-light); font-weight:700; font-size:19px; font-family:Georgia,'Times New Roman',serif; }
+  #header .status{ color:var(--muted-light); font-size:14px; letter-spacing:.5px; }
+  #header .progress{ display:flex; gap:8px; }
+  #header .progress i{ width:10px; height:10px; border-radius:50%; background:#48566a; display:inline-block; }
+  #header .progress i.done{ background:var(--teal); }
+  #header .progress i.current{ background:var(--amber); }
+
+  /* ---------- canvas area ---------- */
+  #canvasWrap{ flex:0 0 250px; position:relative; background:#141a22; }
+  #gameCanvas{ display:block; width:1280px; height:250px; }
+
+  /* ---------- hotbar ---------- */
+  #hotbar{
+    flex:0 0 110px;
+    display:flex; align-items:center; gap:10px;
+    padding:0 20px;
+    background:#e9ebed;
+    border-top:1px solid #d7dadd; border-bottom:1px solid #d7dadd;
+  }
+  .tool-btn{
+    flex:1; height:82px;
+    border-radius:10px;
+    border:1.5px solid #d7dadd;
+    background:#ffffff;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:4px; cursor:pointer;
+    font-family:inherit;
+    transition:transform .08s ease, box-shadow .08s ease;
+    position:relative;
+  }
+  .tool-btn:hover:not(.disabled){ transform:translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,.12); }
+  .tool-btn:active:not(.disabled){ transform:translateY(0); }
+  .tool-btn .key{
+    position:absolute; top:6px; left:8px;
+    font-family:'Courier New',monospace; font-size:11px; color:var(--muted);
+    background:#eef0f1; border-radius:4px; padding:1px 5px; border:1px solid #d7dadd;
+  }
+  .tool-btn .glyph{ font-size:24px; }
+  .tool-btn .label{ font-size:13px; font-weight:700; color:var(--text-dark); text-align:center; line-height:1.15; padding:0 4px; }
+  .tool-btn.used{ border-color:var(--teal); background:#eafbf9; }
+  .tool-btn.reveal-used{ border-color:var(--amber); background:#fff6e6; }
+  .tool-btn.disabled{ opacity:.55; cursor:not-allowed; background:#f1f2f3; }
+  .tool-btn.disabled .glyph{ filter:grayscale(1); }
+
+  /* ---------- terminal ---------- */
+  #termWrap{
+    flex:0 0 190px;
+    background:#0b0e14;
+    padding:14px 22px;
+    overflow:hidden;
+    position:relative;
+  }
+  #termHead{
+    display:flex; align-items:center; gap:8px; margin-bottom:6px;
+  }
+  #termHead .lamp{ width:10px; height:10px; border-radius:50%; }
+  #termHead .lamp.red{ background:#e35b52; }
+  #termHead .lamp.yellow{ background:#e3b552; }
+  #termHead .lamp.green{ background:#5ce396; }
+  #termHead .path{ color:#6b7684; font-family:'Courier New',monospace; font-size:12px; margin-left:6px; }
+  #termBody{
+    font-family:'Courier New',Consolas,Menlo,monospace;
+    font-size:16.5px; line-height:1.42;
+    color:#c9f7ef;
+    white-space:pre-wrap;
+    height:130px; overflow:hidden;
+  }
+  #termBody .reveal-line{ color:var(--amber); font-weight:700; }
+  #termBody .muted-line{ color:#6b7684; }
+  #termBody.unavailable{ color:#e79b96; }
+
+  /* ---------- footer ---------- */
+  #footer{
+    flex:1;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 22px;
+    background:var(--paper);
+    gap:16px;
+  }
+  #objective{ flex:1; font-size:17px; color:var(--text-dark); line-height:1.35; }
+  .goal-tag{ color:var(--amber); font-weight:700; letter-spacing:1.5px; font-size:12px; margin-right:9px; }
+  #footer .btns{ display:flex; gap:10px; flex:0 0 auto; }
+  .action-btn{
+    font-family:inherit; font-size:16px; font-weight:700;
+    padding:14px 22px; border-radius:8px; border:none; cursor:pointer;
+    color:var(--text-light); background:var(--muted);
+  }
+  .action-btn.primary{ background:var(--asphalt); }
+  .action-btn.fix{ background:var(--amber); color:var(--asphalt); }
+  .action-btn:disabled{ opacity:.4; cursor:not-allowed; }
+  .action-btn.ghost{ background:transparent; color:var(--muted); border:1.5px solid #d7dadd; }
+
+  /* ---------- title / transition scenes ---------- */
+  #titleScene{
+    flex:1; display:none; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:40px; background:var(--asphalt); color:var(--text-light);
+  }
+  #titleScene h1{ font-family:Georgia,'Times New Roman',serif; font-size:40px; margin:0 0 14px; max-width:900px; }
+  #titleScene h1 .accent{ color:var(--amber); }
+  #titleScene p{ font-size:18px; color:var(--muted-light); max-width:760px; line-height:1.5; margin:0 0 26px;}
+  #titleScene .hint{ font-size:14px; color:var(--muted-light); margin-top:26px; font-family:'Courier New',monospace; }
+  #titleScene button{
+    font-family:inherit; font-size:18px; font-weight:700;
+    padding:16px 34px; border-radius:8px; border:none; cursor:pointer;
+    background:var(--amber); color:var(--asphalt);
+  }
+
+  /* ---------- fix modal ---------- */
+  #fixModal{
+    position:absolute; inset:0; display:none;
+    background:rgba(11,14,20,.94);
+    align-items:center; justify-content:center; flex-direction:column;
+    padding:50px; text-align:center;
+  }
+  #fixModal .tag{ color:var(--amber); font-weight:700; letter-spacing:2px; font-size:13px; margin-bottom:10px;}
+  #fixModal pre{
+    font-family:'Courier New',monospace; font-size:19px; text-align:left;
+    background:#141a22; border-radius:10px; padding:22px 28px; color:#e5e7eb;
+    max-width:900px; width:100%; line-height:1.6; margin:0 0 20px;
+  }
+  #fixModal pre .del{ color:#e05a52; }
+  #fixModal pre .add{ color:#5ce396; }
+  #fixModal .note{ color:var(--text-light); font-size:17px; max-width:820px; line-height:1.5; margin-bottom:26px; }
+  #fixModal .note b{ color:var(--teal); }
+  #fixModal button{
+    font-family:inherit; font-size:16px; font-weight:700;
+    padding:14px 28px; border-radius:8px; border:none; cursor:pointer;
+    background:var(--teal); color:#0b1f1c;
+  }
+</style>
+</head>
+<body>
+<div id="viewport">
+  <div id="stage">
+
+    <div id="header">
+      <div class="brand"><span class="dot"></span><span class="name">Pothole Patrol</span></div>
+      <div class="status" id="statusText">ACT 1 — THE LOCAL ROAD</div>
+      <div class="progress" id="progressDots"></div>
+    </div>
+
+    <div id="canvasWrap">
+      <canvas id="gameCanvas" width="1280" height="250"></canvas>
+    </div>
+
+    <div id="hotbar"></div>
+
+    <div id="termWrap">
+      <div id="termHead">
+        <span class="lamp red"></span><span class="lamp yellow"></span><span class="lamp green"></span>
+        <span class="path">dev@laptop:~$</span>
+      </div>
+      <div id="termBody">Pick a tool to see its output.</div>
+    </div>
+
+    <div id="footer">
+      <div id="objective"></div>
+      <div class="btns">
+        <button class="action-btn ghost" id="restartBtn">Restart</button>
+        <button class="action-btn fix" id="fixBtn" disabled>Diagnose &amp; Fix</button>
+        <button class="action-btn primary" id="continueBtn" style="display:none;">Continue</button>
+      </div>
+    </div>
+
+    <div id="titleScene">
+      <h1 id="titleHeading"></h1>
+      <p id="titleBody"></p>
+      <button id="titleBtn">Begin</button>
+      <div class="hint">keys 1–6 = tools · enter = primary action · r = restart</div>
+    </div>
+
+    <div id="fixModal">
+      <div class="tag">DIAGNOSIS</div>
+      <pre id="fixDiff"></pre>
+      <div class="note" id="fixNote"></div>
+      <button id="fixContinueBtn">Continue</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ============================== DATA ============================== */
+
+const HOPS_ACT1 = ["Browser", "App process", "Docker network", "Port"];
+const HOPS_ACT2 = ["Browser", "Ingress", "Service", "kube-proxy", "CNI", "Pod"];
+const HOPS_ACT3 = ["Browser", "Service A", "Service B", "Service C"];
+
+const TOOLS_ACT1 = [
+  { id:"devtools",   label:"Browser DevTools",     glyph:"\uD83C\uDF10" },
+  { id:"curl",       label:"curl",                 glyph:"\u2318" },
+  { id:"pingtrace",  label:"ping / traceroute",    glyph:"\uD83D\uDCF6" },
+  { id:"hosts",      label:"/etc/hosts",           glyph:"\uD83D\uDCC4" },
+  { id:"dockerlogs", label:"docker logs",          glyph:"\uD83D\uDC33" },
+  { id:"tcpdump",    label:"tcpdump",               glyph:"\uD83D\uDCE1" },
+];
+
+const TOOLS_ACT2 = [
+  { id:"devtools",  label:"Browser DevTools",       glyph:"\uD83C\uDF10" },
+  { id:"curl",      label:"curl",                   glyph:"\u2318" },
+  { id:"endpoints", label:"kubectl get endpoints",  glyph:"\u2638" },
+  { id:"labels",    label:"kubectl get pods/svc",   glyph:"\uD83C\uDFF7" },
+  { id:"shell",     label:"exec / tcpdump",          glyph:"\uD83D\uDCE1", alwaysDisabled:true },
+  { id:"hubble",    label:"hubble observe",          glyph:"\uD83D\uDD2D" },
+];
+
+const TOOLS_ACT3 = [
+  { id:"devtools", label:"Browser DevTools",      glyph:"\uD83C\uDF10" },
+  { id:"curl",     label:"curl -w timing",        glyph:"\u2318" },
+  { id:"top",      label:"kubectl top pod",       glyph:"\uD83D\uDCCA" },
+  { id:"scale",    label:"kubectl get deploy/hpa",glyph:"\uD83D\uDCC8" },
+  { id:"shell",    label:"exec / tcpdump",        glyph:"\uD83D\uDCE1", alwaysDisabled:true },
+  { id:"hubble",   label:"hubble observe --http", glyph:"\uD83D\uDD2D" },
+];
+
+// One unified traffic simulation \u2014 the hero is just the lead car in lane 0.
+// Every car (hero included) moves at the same constant speed and queues up
+// nose-to-tail behind the current pothole until it's fixed.
+const BG_SPEED = 0.00028;     // fraction of road per ms \u2014 identical for every car, hero included
+const BG_QUEUE_GAP = 0.05;    // minimum nose-to-tail spacing when jammed
+const LANE_OFFSETS = [0, 28, 56]; // y-offset from the centerline; lane 0 is the hero's home lane
+const HERO = { isHero:true, homeLane:0, scale:1, color:"#ffb020", x:0.04, initX:0.04, blocked:false, renderOffset:0 };
+const BG_CARS = [
+  { homeLane:1, scale:0.95, color:"#4a5666", x:-0.05, initX:-0.05, renderOffset:LANE_OFFSETS[1] },
+  { homeLane:1, scale:0.90, color:"#3a4553", x:-0.30, initX:-0.30, renderOffset:LANE_OFFSETS[1] },
+  { homeLane:1, scale:0.98, color:"#5a6675", x:-0.55, initX:-0.55, renderOffset:LANE_OFFSETS[1] },
+  { homeLane:2, scale:1.00, color:"#5a6675", x:-0.15, initX:-0.15, renderOffset:LANE_OFFSETS[2] },
+  { homeLane:2, scale:0.92, color:"#4a5666", x:-0.40, initX:-0.40, renderOffset:LANE_OFFSETS[2] },
+  { homeLane:2, scale:0.88, color:"#3a4553", x:-0.65, initX:-0.65, renderOffset:LANE_OFFSETS[2] },
+];
+
+// Act 3 tells its capacity story with lanes too: while the pod is overloaded,
+// every car \u2014 hero included \u2014 is squeezed into a single lane. The moment it's
+// fixed, the road opens up to 3 lanes and everyone can spread out.
+function laneForCar(scene, rt, car){
+  if (scene.act === 3 && !rt.fixed) return 0;
+  return car.homeLane;
+}
+function laneCountForScene(scene, rt){
+  return (scene.act === 3 && !rt.fixed) ? 1 : 3;
+}
+
+const POTHOLES = {
+  act1: [
+    {
+      id:"bind-localhost",
+      goal:"Find out why curl can\u2019t reach an app Docker says is healthy.",
+      roadPos:0.55,
+      tools:{
+        devtools:{ output:"GET http://localhost:3000/api/orders\nnet::ERR_CONNECTION_REFUSED" },
+        curl:{ output:"$ curl -v http://localhost:3000/api/orders\n* Trying 127.0.0.1:3000...\n* connect to 127.0.0.1 port 3000 failed: Connection refused\ncurl: (7) Failed to connect to localhost port 3000" },
+        pingtrace:{ output:"$ ping -c 3 localhost\n64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=0.031 ms\n64 bytes from 127.0.0.1: icmp_seq=2 ttl=64 time=0.028 ms\n64 bytes from 127.0.0.1: icmp_seq=3 ttl=64 time=0.026 ms\n--- 3 packets transmitted, 3 received, 0% loss ---" },
+        hosts:{ output:"$ cat /etc/hosts\n127.0.0.1   localhost\n::1         localhost ip6-localhost" },
+        dockerlogs:{ output:"$ docker logs orders-api\n> orders-api@1.0.0 start\n> node server.js\n\nServer listening on 127.0.0.1:3000", reveal:true },
+        tcpdump:{ output:"$ sudo tcpdump -i lo0 port 3000\nlistening on lo0, link-type NULL\n0 packets captured" },
+      },
+      fixDiff:[["del","app.listen(3000, '127.0.0.1')"],["add","app.listen(3000, '0.0.0.0')"]],
+      fixNote:"The app bound to its own loopback address \u2014 invisible from outside the container.",
+    },
+  ],
+  act2: [
+    {
+      id:"selector-typo",
+      goal:"Find out why the Service has zero endpoints.",
+      roadPos:0.30,
+      tools:{
+        devtools:{ output:"GET https://orders.example.com/api/orders\n503 Service Unavailable" },
+        curl:{ output:"$ curl -v https://orders.example.com/api/orders\n< HTTP/1.1 503 Service Unavailable\n< server: envoy\nno healthy upstream" },
+        endpoints:{ output:"$ kubectl get endpoints orders-api\nNAME         ENDPOINTS   AGE\norders-api   <none>      14m" },
+        labels:{ output:"$ kubectl get pods --show-labels\norders-api-7d9f8b6c9-xk2lp  app=orders-srv\n$ kubectl get svc orders-api -o jsonpath='{.spec.selector}'\n{\"app\":\"orders-service\"}", reveal:true },
+        shell:{ unavailable:true, caption:"No shell. No node access." },
+        hubble:{ output:"$ hubble observe --to-pod orders-api --last 5m\n(no flows observed \u2014 nothing is being routed to this pod)" },
+      },
+      fixDiff:[["del","selector: {app: orders-service}"],["add","selector: {app: orders-srv}"]],
+      fixNote:"A Pod label changed during a refactor; the Service selector was never updated.",
+    },
+    {
+      id:"default-deny",
+      goal:"Find out why the request disappears with no response at all.",
+      roadPos:0.72,
+      tools:{
+        devtools:{ output:"GET https://orders.example.com/api/orders\n(pending...)\nnet::ERR_TIMED_OUT" },
+        curl:{ output:"$ curl -v --max-time 5 https://orders.example.com/api/orders\n* Connected to orders.example.com\n> GET /api/orders HTTP/1.1\n* Operation timed out after 5000ms with 0 bytes received\ncurl: (28) Operation timed out" },
+        endpoints:{ output:"$ kubectl get endpoints orders-api\nNAME         ENDPOINTS         AGE\norders-api   10.42.1.17:3000   22m" },
+        labels:{ output:"$ kubectl get pods --show-labels\norders-api-7d9f8b6c9-xk2lp  app=orders-srv\n$ kubectl get svc orders-api -o jsonpath='{.spec.selector}'\n{\"app\":\"orders-srv\"}" },
+        shell:{ unavailable:true, caption:"No shell. No node access." },
+        hubble:{ output:"$ hubble observe --pod orders-api --last 5\nfrontend-7f9d -> orders-api-7d9f  TCP SYN  FORWARDED\nfrontend-7f9d -> orders-api-7d9f  TCP SYN  DROPPED  (Policy denied)\n  policy: default-deny   namespace: orders", reveal:true },
+      },
+      fixDiff:[["add","NetworkPolicy: allow frontend -> orders-api on tcp/3000"]],
+      fixNote:"A namespace-wide default-deny policy shipped with no allow-rule for this path.",
+    },
+  ],
+  act3: [
+    {
+      id:"resource-starved",
+      goal:"Find out why checkout is slow enough to time out.",
+      roadPos:0.80,
+      gauge:{ hopIndex:3, badLabel:"CPU ~99%", goodLabel:"CPU ~35%" },
+      tools:{
+        devtools:{ output:"GET /checkout\n(pending... 5.0s)\n504 Gateway Timeout" },
+        curl:{ output:"$ curl -o /dev/null -s -w 'total:%{time_total}s status:%{http_code}\\n' \\\n    https://orders.example.com/checkout\ntotal:5.011s status:504" },
+        top:{ output:"$ kubectl top pod inventory-svc-7c9d4f-2k9pl\nNAME                         CPU    MEMORY\ninventory-svc-7c9d4f-2k9pl   248m   241Mi" },
+        scale:{ output:"$ kubectl get deploy inventory-svc\nNAME            READY\ninventory-svc   1/1\n$ kubectl get hpa\nNo resources found in orders namespace." },
+        shell:{ unavailable:true, caption:"No shell. No node access." },
+        hubble:{ output:"$ hubble observe --protocol http --last 5\norders-api  -> pricing-svc     GET  14ms    200\npricing-svc -> inventory-svc   GET  4380ms  200", reveal:true },
+      },
+      fixDiff:[["del","resources: {limits: {cpu: '250m', memory: '256Mi'}}"],["add","resources: {limits: {cpu: '1', memory: '1Gi'}}"],["del","replicas: 1"],["add","replicas: 3"]],
+      fixNote:"inventory-svc was sized for a demo, not for load: one pod, no headroom, no backup.",
+    },
+  ],
+};
+
+const SCENES = [
+  { type:"title", id:"intro" },
+  { type:"pothole", id:"act1-0", act:1, hops:HOPS_ACT1, tools:TOOLS_ACT1, data:POTHOLES.act1[0] },
+  { type:"title", id:"act2-transition" },
+  { type:"pothole", id:"act2-0", act:2, hops:HOPS_ACT2, tools:TOOLS_ACT2, data:POTHOLES.act2[0] },
+  { type:"pothole", id:"act2-1", act:2, hops:HOPS_ACT2, tools:TOOLS_ACT2, data:POTHOLES.act2[1] },
+  { type:"title", id:"act3-transition" },
+  { type:"pothole", id:"act3-0", act:3, hops:HOPS_ACT3, tools:TOOLS_ACT3, data:POTHOLES.act3[0] },
+  { type:"title", id:"closing" },
+];
+
+const TITLE_CONTENT = {
+  "intro": {
+    heading: 'It works on my machine. It works in Docker. <span class="accent">It dies in the cluster.</span>',
+    body: "Same app, two roads. Pick a tool, read the output, fix what\u2019s broken.",
+    btn: "Begin Act 1 \u2014 The Local Road",
+  },
+  "act2-transition": {
+    heading: 'Same app. Now it\u2019s on <span class="accent">managed Kubernetes.</span>',
+    body: "Watch the hotbar \u2014 some tools are about to disappear.",
+    btn: "Continue to Act 2 \u2014 The Managed Road",
+  },
+  "act3-transition": {
+    heading: 'Same three services. Now under <span class="accent">real load.</span>',
+    body: "Nothing\u2019s broken. Something\u2019s just out of room.",
+    btn: "Continue to Act 3 \u2014 The Overloaded Road",
+  },
+  "closing": {
+    heading: 'Turn on <span class="accent">flow visibility.</span>',
+    body: "Cilium + Hubble give back the visibility distroless containers took away.",
+    btn: "Restart the demo",
+  },
+};
+
+/* ============================== STATE ============================== */
+
+const runtime = {}; // per-pothole-scene runtime state, keyed by scene id
+SCENES.forEach(s => { if (s.type === "pothole") runtime[s.id] = { used:{}, revealed:false, fixed:false }; });
+
+let sceneIndex = 0;
+let transitioning = false; // true while the hero is driving off before an act change
+let laneOpenProgress = 1;  // 0 = squeezed into a single lane, 1 = all lanes open (Act 3 only)
+
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+/* ============================== SCENE RENDERING ============================== */
+
+function currentScene(){ return SCENES[sceneIndex]; }
+
+function setStatus(text){ document.getElementById("statusText").textContent = text; }
+
+function renderProgressDots(){
+  const wrap = document.getElementById("progressDots");
+  wrap.innerHTML = "";
+  SCENES.forEach((s, i) => {
+    if (s.type !== "pothole") return;
+    const dot = document.createElement("i");
+    if (i < sceneIndex) dot.className = "done";
+    else if (i === sceneIndex) dot.className = "current";
+    wrap.appendChild(dot);
+  });
+}
+
+function showTitleScene(id){
+  document.getElementById("hotbar").style.display = "none";
+  document.getElementById("termWrap").style.display = "none";
+  document.getElementById("footer").style.display = "none";
+  document.getElementById("canvasWrap").style.display = "none";
+  const scene = document.getElementById("titleScene");
+  scene.style.display = "flex";
+  const content = TITLE_CONTENT[id];
+  document.getElementById("titleHeading").innerHTML = content.heading;
+  document.getElementById("titleBody").textContent = content.body;
+  document.getElementById("titleBtn").textContent = content.btn;
+  const isTransition = id === "act2-transition" || id === "act3-transition";
+  setStatus(id === "closing" ? "DEMO COMPLETE" : (isTransition ? "TRANSITION" : "WELCOME"));
+  renderProgressDots();
+}
+
+function hideTitleScene(){
+  document.getElementById("titleScene").style.display = "none";
+  document.getElementById("hotbar").style.display = "flex";
+  document.getElementById("termWrap").style.display = "block";
+  document.getElementById("footer").style.display = "flex";
+  document.getElementById("canvasWrap").style.display = "block";
+}
+
+function renderPotholeScene(scene){
+  hideTitleScene();
+  const rt = runtime[scene.id];
+  const actLabels = { 1:" \u2014 THE LOCAL ROAD", 2:" \u2014 THE MANAGED ROAD", 3:" \u2014 THE OVERLOADED ROAD" };
+  setStatus("ACT " + scene.act + (actLabels[scene.act] || ""));
+  renderProgressDots();
+
+  document.getElementById("objective").innerHTML = '<span class="goal-tag">FIND OUT</span>' + scene.data.goal;
+
+  renderHotbar(scene, rt);
+  renderTerminalIdle();
+  updateActionButtons(scene, rt);
+
+  // Drive left-to-right: reset everyone to the start of a fresh road when a
+  // new act begins. Within an act, cars just keep flowing from where they are.
+  const prevScene = SCENES[sceneIndex - 1];
+  const isActStart = !prevScene || prevScene.type !== "pothole" || prevScene.act !== scene.act;
+  if (isActStart){
+    HERO.x = HERO.initX;
+    HERO.renderOffset = LANE_OFFSETS[0];
+    BG_CARS.forEach((c) => { c.x = c.initX; c.renderOffset = LANE_OFFSETS[c.homeLane]; });
+    // Act 3 always starts squeezed into a single lane \u2014 match the render state
+    // to that immediately so it doesn't animate in from a stale "open" value.
+    if (scene.act === 3){
+      laneOpenProgress = 0;
+      BG_CARS.forEach((c) => { c.renderOffset = LANE_OFFSETS[0]; });
+    } else {
+      laneOpenProgress = 1;
+    }
+  }
+  drawRoad(scene, rt);
+}
+
+function renderHotbar(scene, rt){
+  const wrap = document.getElementById("hotbar");
+  wrap.innerHTML = "";
+  scene.tools.forEach((tool, i) => {
+    const toolData = scene.data.tools[tool.id] || {};
+    const btn = document.createElement("button");
+    const isDisabled = !!tool.alwaysDisabled || !!toolData.unavailable;
+    let cls = "tool-btn";
+    if (isDisabled) cls += " disabled";
+    else if (rt.used[tool.id] && toolData.reveal) cls += " reveal-used";
+    else if (rt.used[tool.id]) cls += " used";
+    btn.className = cls;
+    btn.innerHTML =
+      '<span class="key">' + (i+1) + (isDisabled ? " \uD83D\uDD12" : "") + '</span>' +
+      '<span class="glyph">' + tool.glyph + '</span>' +
+      '<span class="label">' + tool.label + '</span>';
+    btn.addEventListener("click", () => useTool(scene, rt, tool.id));
+    wrap.appendChild(btn);
+  });
+}
+
+function renderTerminalIdle(){
+  document.getElementById("termBody").className = "";
+  document.getElementById("termBody").textContent = "Pick a tool to see its output.";
+}
+
+function useTool(scene, rt, toolId){
+  const toolData = scene.data.tools[toolId] || {};
+  const tool = scene.tools.find(t => t.id === toolId);
+  const body = document.getElementById("termBody");
+
+  if (tool.alwaysDisabled || toolData.unavailable){
+    body.className = "unavailable";
+    body.textContent = "\uD83D\uDEAB unavailable \u2014 " + (toolData.caption || "no access from here.");
+    return;
+  }
+
+  rt.used[toolId] = true;
+  body.className = "";
+  body.textContent = toolData.output;
+
+  if (toolData.reveal) rt.revealed = true;
+
+  renderHotbar(scene, rt);
+  updateActionButtons(scene, rt);
+  drawRoad(scene, rt);
+}
+
+function updateActionButtons(scene, rt){
+  const fixBtn = document.getElementById("fixBtn");
+  const continueBtn = document.getElementById("continueBtn");
+  if (rt.fixed){
+    fixBtn.style.display = "none";
+    continueBtn.style.display = "inline-block";
+  } else {
+    fixBtn.style.display = "inline-block";
+    continueBtn.style.display = "none";
+    fixBtn.disabled = !rt.revealed;
+  }
+}
+
+/* ============================== CANVAS / ROAD ============================== */
+
+function drawRoad(scene, rt, ts){
+  ts = ts || performance.now();
+  const W = canvas.width, H = canvas.height;
+  const roadY = H * 0.62;
+  ctx.clearRect(0, 0, W, H);
+
+  // background
+  ctx.fillStyle = "#141a22";
+  ctx.fillRect(0, 0, W, H);
+
+  // road strip \u2014 tall enough for the hero lane plus two traffic lanes below it
+  ctx.fillStyle = "#232c38";
+  ctx.fillRect(0, roadY - 34, W, 108);
+  // hero lane divider (dashed, brighter) \u2014 always present
+  ctx.strokeStyle = "#3a4553";
+  ctx.lineWidth = 3;
+  ctx.setLineDash([26, 22]);
+  ctx.beginPath();
+  ctx.moveTo(0, roadY);
+  ctx.lineTo(W, roadY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // The other two lanes fade between "closed" (hatched, overloaded pod) and
+  // "open" (normal dashed dividers) using laneOpenProgress, so Act 3's fix
+  // visibly widens the road instead of popping between two fixed images.
+  const closedAlpha = 1 - laneOpenProgress;
+  if (closedAlpha > 0.02){
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, roadY + 10, W, 64);
+    ctx.clip();
+    ctx.fillStyle = "rgba(5,7,10," + (0.55 * closedAlpha) + ")";
+    ctx.fillRect(0, roadY + 10, W, 64);
+    ctx.strokeStyle = "rgba(255,176,32," + (0.28 * closedAlpha) + ")";
+    ctx.lineWidth = 4;
+    for (let x = -80; x < W + 80; x += 28){
+      ctx.beginPath();
+      ctx.moveTo(x, roadY - 10);
+      ctx.lineTo(x + 50, roadY + 90);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  if (laneOpenProgress > 0.02){
+    ctx.strokeStyle = "rgba(44,53,66," + laneOpenProgress + ")";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([16, 14]);
+    [roadY + 14, roadY + 42].forEach((ly) => {
+      ctx.beginPath();
+      ctx.moveTo(0, ly);
+      ctx.lineTo(W, ly);
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+  }
+
+  const margin = 90;
+  const usableW = W - margin * 2;
+  const hopY = roadY - 78;
+
+  // background traffic \u2014 ambient cars, queued up behind an unfixed pothole
+  BG_CARS.forEach((car) => {
+    const x = margin + car.x * usableW;
+    drawMiniCar(x, roadY + car.renderOffset, car.scale, car.color, car.blocked);
+  });
+
+  // hop dots + labels
+  const fogged = scene.act === 2;
+  const resolvedCount = countResolved(scene);
+  scene.hops.forEach((label, i) => {
+    const x = margin + (i / (scene.hops.length - 1)) * usableW;
+    const isEdge = i === 0 || i === scene.hops.length - 1;
+    let dim = fogged && !isEdge;
+    // reveal middle hops progressively as potholes are fixed, or fully at closing
+    if (dim && resolvedCount > 0){
+      const revealFrac = resolvedCount / totalPotholesInAct(scene.act);
+      const hopFrac = i / (scene.hops.length - 1);
+      if (hopFrac <= revealFrac + 0.15) dim = false;
+    }
+    ctx.beginPath();
+    ctx.fillStyle = dim ? "#3a4553" : "#2ec4b6";
+    ctx.strokeStyle = dim ? "#4a5666" : "#f5f6f7";
+    ctx.lineWidth = 1.5;
+    ctx.arc(x, hopY, 8, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = dim ? "#5a6675" : "#e8eaec";
+    ctx.font = "13px -apple-system, Helvetica, Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(dim ? "?" : label, x, hopY - 18);
+
+    // connecting line segment
+    if (i > 0){
+      const prevX = margin + ((i-1) / (scene.hops.length - 1)) * usableW;
+      ctx.strokeStyle = "#394655";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(prevX, hopY);
+      ctx.lineTo(x, hopY);
+      ctx.stroke();
+    }
+  });
+
+  // capacity gauge (Act 3 only) — shows the constrained pod's headroom, and
+  // extra "replica" dots once the fix has landed
+  if (scene.data.gauge){
+    const g = scene.data.gauge;
+    const hopX = margin + (g.hopIndex / (scene.hops.length - 1)) * usableW;
+    const isFixedNow = rt && rt.fixed;
+    const frac = isFixedNow ? 0.35 : 0.97;
+    const barColor = isFixedNow ? "#2ec4b6" : "#d64541";
+    const barW = 60, barH = 10, barX = hopX - barW / 2, barY = hopY + 20;
+    ctx.strokeStyle = "#4a5666";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(barX, barY, barW, barH);
+    ctx.fillStyle = barColor;
+    ctx.fillRect(barX + 1, barY + 1, Math.max(2, (barW - 2) * frac), barH - 2);
+    ctx.fillStyle = "#9aa5b1";
+    ctx.font = "11px 'Courier New', monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(isFixedNow ? g.goodLabel : g.badLabel, hopX, barY + barH + 16);
+    if (isFixedNow){
+      [-15, 15].forEach((dx) => {
+        ctx.beginPath();
+        ctx.fillStyle = "#2ec4b6";
+        ctx.strokeStyle = "#173f3b";
+        ctx.lineWidth = 1;
+        ctx.arc(hopX + dx, hopY, 5, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+      });
+    }
+  }
+
+  // pothole markers for this act
+  const potholes = POTHOLES["act" + scene.act] || [];
+  potholes.forEach((p) => {
+    const x = margin + p.roadPos * usableW;
+    const isCurrent = p.id === scene.data.id;
+    const key = actPotholeSceneId(scene.act, p.id);
+    const rtOther = runtime[key];
+    const isFixed = rtOther && rtOther.fixed;
+    drawPothole(x, roadY + 4, 24, 12, isFixed ? "fixed" : (isCurrent ? "current" : "ahead"), seedFromString(p.id), ts);
+  });
+
+  // hero car (the request, leading its lane)
+  const heroX = margin + HERO.x * usableW;
+  const heroY = roadY + HERO.renderOffset;
+  drawCar(heroX, heroY, ts, !HERO.blocked, HERO.blocked);
+}
+
+function seedFromString(s){
+  let h = 7;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 1000;
+  return h;
+}
+
+function drawPothole(cx, cy, rx, ry, kind, seed, ts){
+  if (kind === "fixed"){
+    // freshly patched asphalt \u2014 smoother and lighter than a raw hole
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fillStyle = "#3a4553";
+    ctx.fill();
+    ctx.strokeStyle = "#2ec4b6";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(46,196,182,0.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx - rx, cy); ctx.lineTo(cx + rx, cy); ctx.stroke();
+    ctx.fillStyle = "#0b1f1c";
+    ctx.font = "bold 13px -apple-system, Helvetica, Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("\u2713", cx, cy + 4);
+    return;
+  }
+
+  // jagged hole outline, deterministic per-pothole so it doesn't reshuffle on redraw
+  const points = 11;
+  ctx.beginPath();
+  for (let i = 0; i <= points; i++){
+    const a = (i / points) * Math.PI * 2;
+    const jitter = 0.72 + 0.30 * Math.sin(seed + i * 2.3) * Math.cos(seed * 0.5 + i);
+    const px = cx + Math.cos(a) * rx * jitter;
+    const py = cy + Math.sin(a) * ry * jitter;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+
+  const grad = ctx.createRadialGradient(cx, cy - ry * 0.2, 1, cx, cy, rx * 1.1);
+  grad.addColorStop(0, "#05070a");
+  grad.addColorStop(0.55, "#171d24");
+  grad.addColorStop(1, "#333f4d");
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = "#05070a";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // hairline cracks reaching out from the hole
+  for (let i = 0; i < 3; i++){
+    const a = seed * 0.3 + i * 2.1;
+    const sx = cx + Math.cos(a) * rx * 0.95, sy = cy + Math.sin(a) * ry * 0.95;
+    const ex = cx + Math.cos(a) * rx * 1.55, ey = cy + Math.sin(a) * ry * 1.55;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.strokeStyle = "rgba(5,7,10,0.7)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  if (kind === "current"){
+    ctx.save();
+    ctx.setLineDash([5, 4]);
+    ctx.lineDashOffset = -((ts || 0) * 0.03);
+    const pulse = 1 + Math.sin((ts || 0) * 0.004) * 0.08;
+    ctx.strokeStyle = "#ffb020";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, (rx + 7) * pulse, (ry + 7) * pulse, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawRoundedPath(x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawCar(cx, roadY, ts, isMoving, isBraking){
+  const wheelR = 7;
+  const bodyW = 48, bodyH = 16;
+  const bob = isMoving ? Math.sin(ts * 0.03) * 1.2 : Math.sin(ts * 0.004) * 0.6;
+  const wheelCenterY = roadY - 2 + bob;
+  const bodyY = wheelCenterY - bodyH;
+  const spin = isMoving ? (ts * 0.02) % (Math.PI * 2) : 0;
+
+  // skid marks under the rear wheel, only while braking
+  if (isBraking){
+    ctx.strokeStyle = "rgba(10,13,18,0.55)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cx - bodyW / 2 + 4, wheelCenterY + wheelR - 1);
+    ctx.lineTo(cx - bodyW / 2 - 14, wheelCenterY + wheelR - 1);
+    ctx.stroke();
+  }
+
+  // contact shadow
+  ctx.beginPath();
+  ctx.ellipse(cx, roadY - 2 + wheelR + 3, 26, 5, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.fill();
+
+  // body
+  drawRoundedPath(cx - bodyW / 2, bodyY, bodyW, bodyH, 6);
+  ctx.fillStyle = "#ffb020";
+  ctx.fill();
+  ctx.strokeStyle = "#1b2430";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // cabin
+  ctx.beginPath();
+  ctx.moveTo(cx - 13, bodyY + 2);
+  ctx.lineTo(cx - 6, bodyY - 10);
+  ctx.lineTo(cx + 10, bodyY - 10);
+  ctx.lineTo(cx + 15, bodyY + 2);
+  ctx.closePath();
+  ctx.fillStyle = "#ffb020";
+  ctx.fill();
+  ctx.stroke();
+
+  // windshield (front) + rear window
+  ctx.beginPath();
+  ctx.moveTo(cx + 2, bodyY - 8.5);
+  ctx.lineTo(cx + 9, bodyY - 8.5);
+  ctx.lineTo(cx + 13, bodyY + 1);
+  ctx.lineTo(cx + 2, bodyY + 1);
+  ctx.closePath();
+  ctx.fillStyle = "#bfe9ff";
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(cx - 10, bodyY + 1);
+  ctx.lineTo(cx - 4.5, bodyY - 8.5);
+  ctx.lineTo(cx, bodyY - 8.5);
+  ctx.lineTo(cx, bodyY + 1);
+  ctx.closePath();
+  ctx.fillStyle = "#bfe9ff";
+  ctx.fill();
+
+  // wheels (spin while driving)
+  [cx - bodyW / 2 + 11, cx + bodyW / 2 - 11].forEach((wx) => {
+    ctx.beginPath();
+    ctx.arc(wx, wheelCenterY, wheelR, 0, Math.PI * 2);
+    ctx.fillStyle = "#1b2430";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(wx, wheelCenterY, 3, 0, Math.PI * 2);
+    ctx.fillStyle = "#c7ccd1";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(wx - Math.cos(spin) * 3, wheelCenterY - Math.sin(spin) * 3);
+    ctx.lineTo(wx + Math.cos(spin) * 3, wheelCenterY + Math.sin(spin) * 3);
+    ctx.strokeStyle = "#6b7684";
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  });
+
+  // headlight (front, direction of travel)
+  ctx.beginPath();
+  ctx.arc(cx + bodyW / 2 - 2, bodyY + bodyH / 2, 2.2, 0, Math.PI * 2);
+  ctx.fillStyle = "#fff6da";
+  ctx.fill();
+
+  // taillight \u2014 dim normally, bright red while braking
+  ctx.beginPath();
+  ctx.arc(cx - bodyW / 2 + 2, bodyY + bodyH / 2, 2.2, 0, Math.PI * 2);
+  ctx.fillStyle = isBraking ? "#ff3b30" : "#7a2a26";
+  ctx.fill();
+  if (isBraking){
+    ctx.beginPath();
+    ctx.arc(cx - bodyW / 2 + 2, bodyY + bodyH / 2, 5, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,59,48,0.35)";
+    ctx.fill();
+  }
+
+  // little motion lines behind the car while driving (not while braking to a stop)
+  if (isMoving && !isBraking){
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 2;
+    [-6, 0, 6].forEach((dy, i) => {
+      ctx.beginPath();
+      ctx.moveTo(cx - bodyW / 2 - 8 - i * 5, wheelCenterY - 5 + dy * 0.6);
+      ctx.lineTo(cx - bodyW / 2 - 16 - i * 5, wheelCenterY - 5 + dy * 0.6);
+      ctx.stroke();
+    });
+  }
+}
+
+function drawMiniCar(cx, roadY, scale, color, blocked){
+  const wheelR = 4 * scale, bodyW = 34 * scale, bodyH = 11 * scale;
+  const bodyY = roadY - wheelR * 2 - bodyH + wheelR;
+
+  if (blocked){
+    ctx.strokeStyle = "rgba(10,13,18,0.5)";
+    ctx.lineWidth = 2.5 * scale;
+    ctx.beginPath();
+    ctx.moveTo(cx - bodyW / 2 + 2, bodyY + bodyH + wheelR - 1);
+    ctx.lineTo(cx - bodyW / 2 - 8 * scale, bodyY + bodyH + wheelR - 1);
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 0.75;
+  drawRoundedPath(cx - bodyW / 2, bodyY, bodyW, bodyH, 4 * scale);
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(cx - bodyW * 0.2, bodyY + 1);
+  ctx.lineTo(cx - bodyW * 0.05, bodyY - bodyH * 0.7);
+  ctx.lineTo(cx + bodyW * 0.28, bodyY - bodyH * 0.7);
+  ctx.lineTo(cx + bodyW * 0.34, bodyY + 1);
+  ctx.closePath();
+  ctx.fill();
+
+  [cx - bodyW / 2 + wheelR * 1.6, cx + bodyW / 2 - wheelR * 1.6].forEach((wx) => {
+    ctx.beginPath();
+    ctx.arc(wx, bodyY + bodyH, wheelR, 0, Math.PI * 2);
+    ctx.fillStyle = "#12161c";
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  if (blocked){
+    ctx.beginPath();
+    ctx.arc(cx - bodyW / 2 + 2, bodyY + bodyH * 0.5, 1.8 * scale, 0, Math.PI * 2);
+    ctx.fillStyle = "#ff3b30";
+    ctx.fill();
+  }
+}
+
+function actPotholeSceneId(act, potholeId){
+  return SCENES.find(s => s.type === "pothole" && s.act === act && s.data.id === potholeId).id;
+}
+function totalPotholesInAct(act){
+  return SCENES.filter(s => s.type === "pothole" && s.act === act).length;
+}
+function countResolved(scene){
+  return SCENES.filter(s => s.type === "pothole" && s.act === scene.act && runtime[s.id].fixed).length;
+}
+
+// The road can have more than one pothole in it (Act 2 has two). Traffic must
+// stop at the FIRST unfixed one, not just whichever pothole scene happens to
+// be showing in the hotbar right now \u2014 otherwise cars sail straight through
+// a still-broken pothole further down the road the moment an earlier one heals.
+function currentBlockX(scene){
+  const potholes = POTHOLES["act" + scene.act] || [];
+  for (const p of potholes){
+    const rtOther = runtime[actPotholeSceneId(scene.act, p.id)];
+    if (!rtOther.fixed) return p.roadPos - 0.01;
+  }
+  return null;
+}
+
+/* ============================== FIX MODAL ============================== */
+
+function openFixModal(scene, rt){
+  const modal = document.getElementById("fixModal");
+  const pre = document.getElementById("fixDiff");
+  pre.innerHTML = scene.data.fixDiff.map(([kind, line]) => {
+    const cls = kind === "del" ? "del" : "add";
+    const sign = kind === "del" ? "- " : "+ ";
+    return '<span class="' + cls + '">' + sign + escapeHtml(line) + "</span>";
+  }).join("\n");
+  document.getElementById("fixNote").innerHTML = "<b>In real life, this was:</b> " + scene.data.fixNote;
+  modal.style.display = "flex";
+}
+function closeFixModalAndAdvance(scene, rt){
+  document.getElementById("fixModal").style.display = "none";
+  rt.fixed = true;
+  updateActionButtons(scene, rt);
+  drawRoad(scene, rt);
+}
+function escapeHtml(s){
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+/* ============================== NAVIGATION ============================== */
+
+function goToScene(index){
+  sceneIndex = Math.max(0, Math.min(SCENES.length - 1, index));
+  const scene = currentScene();
+  if (scene.type === "title") showTitleScene(scene.id);
+  else renderPotholeScene(scene);
+}
+
+function primaryAction(){
+  if (transitioning) return;
+  const scene = currentScene();
+  if (scene.type === "title"){
+    if (scene.id === "closing"){ restart(); return; }
+    goToScene(sceneIndex + 1);
+    return;
+  }
+  const rt = runtime[scene.id];
+  if (!rt.fixed){
+    if (!document.getElementById("fixBtn").disabled) openFixModal(scene, rt);
+  } else {
+    advanceFromPothole();
+  }
+}
+
+function advanceFromPothole(){
+  const nextScene = SCENES[sceneIndex + 1];
+  if (nextScene && nextScene.type === "title"){
+    // The pothole is already fixed, so the hero is unblocked and will drive off
+    // the end of this road at the same constant speed as everyone else. The
+    // animation loop watches for it clearing the screen and cuts the scene then.
+    transitioning = true;
+  } else {
+    goToScene(sceneIndex + 1);
+  }
+}
+
+function restart(){
+  Object.keys(runtime).forEach(k => { runtime[k] = { used:{}, revealed:false, fixed:false }; });
+  goToScene(0);
+}
+
+/* ============================== EVENTS ============================== */
+
+document.getElementById("titleBtn").addEventListener("click", primaryAction);
+document.getElementById("fixBtn").addEventListener("click", primaryAction);
+document.getElementById("continueBtn").addEventListener("click", primaryAction);
+document.getElementById("restartBtn").addEventListener("click", restart);
+document.getElementById("fixContinueBtn").addEventListener("click", () => {
+  const scene = currentScene();
+  closeFixModalAndAdvance(scene, runtime[scene.id]);
+});
+
+window.addEventListener("keydown", (e) => {
+  if (e.repeat) return;
+  const scene = currentScene();
+  if (document.getElementById("fixModal").style.display === "flex"){
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); closeFixModalAndAdvance(scene, runtime[scene.id]); }
+    return;
+  }
+  if (e.key === "r" || e.key === "R"){ restart(); return; }
+  if (e.key === "Enter" || e.key === " "){ e.preventDefault(); primaryAction(); return; }
+  if (scene.type === "pothole" && /^[1-6]$/.test(e.key)){
+    const idx = parseInt(e.key, 10) - 1;
+    const tool = scene.tools[idx];
+    if (tool) useTool(scene, runtime[scene.id], tool.id);
+  }
+});
+
+/* ============================== SCALE TO FIT ============================== */
+
+function scaleStage(){
+  const stage = document.getElementById("stage");
+  const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+  stage.style.transform = "scale(" + scale + ")";
+}
+window.addEventListener("resize", scaleStage);
+scaleStage();
+
+/* ============================== INIT ============================== */
+
+goToScene(0);
+
+function updateTraffic(scene, dt){
+  const rt = runtime[scene.id];
+  const blockX = currentBlockX(scene);
+
+  // Act 3's lane count is a live, eased value so the road visibly widens
+  // instead of popping between states the instant the fix lands.
+  const laneTarget = laneCountForScene(scene, rt) === 3 ? 1 : 0;
+  laneOpenProgress += (laneTarget - laneOpenProgress) * 0.045;
+  if (Math.abs(laneTarget - laneOpenProgress) < 0.002) laneOpenProgress = laneTarget;
+
+  const lanes = {};
+  [HERO, ...BG_CARS].forEach((c) => {
+    const lane = laneForCar(scene, rt, c);
+    (lanes[lane] = lanes[lane] || []).push(c);
+  });
+
+  Object.values(lanes).forEach((cars) => {
+    cars.sort((a, b) => b.x - a.x); // frontmost (largest x) first
+    let ahead = blockX === null ? Infinity : blockX;
+    cars.forEach((car) => {
+      const wouldBe = car.x + BG_SPEED * dt;
+      const allowed = Math.min(wouldBe, ahead - BG_QUEUE_GAP);
+      car.blocked = wouldBe > allowed + 1e-6;
+      car.x = allowed;
+      ahead = car.x;
+    });
+    // wrap-around happens after clamping so it never corrupts the queue math above.
+    // The hero never wraps \u2014 once it clears the road, a scene change takes over.
+    cars.forEach((car) => {
+      if (car.isHero) return;
+      if (car.x > 1.15){ car.x = -0.15 - Math.random() * 0.15; car.blocked = false; }
+    });
+  });
+
+  // Ease each car's rendered lane position toward its target lane, so an Act 3
+  // lane change (or any lane change) glides instead of snapping in one frame.
+  [HERO, ...BG_CARS].forEach((car) => {
+    const targetOffset = LANE_OFFSETS[laneForCar(scene, rt, car)];
+    car.renderOffset += (targetOffset - car.renderOffset) * 0.06;
+    if (Math.abs(targetOffset - car.renderOffset) < 0.3) car.renderOffset = targetOffset;
+  });
+}
+
+let lastTs = 0;
+function animLoop(ts){
+  const dt = lastTs ? Math.min(ts - lastTs, 50) : 16;
+  lastTs = ts;
+
+  const scene = currentScene();
+  if (scene.type === "pothole"){
+    updateTraffic(scene, dt);
+    drawRoad(scene, runtime[scene.id], ts);
+    if (transitioning && HERO.x > 0.95){
+      transitioning = false;
+      goToScene(sceneIndex + 1);
+    }
+  }
+  requestAnimationFrame(animLoop);
+}
+requestAnimationFrame(animLoop);
+</script>
+
+</body>
+</html>
